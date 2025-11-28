@@ -1,0 +1,20 @@
+{
+  "name": "sa_webfrontend",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "这是一个基于Electron框架开发的本地网页浏览器，具有简洁美观的界面设计和完整的浏览器功能。浏览器采用淡紫色主题，界面紧凑，所有功能按钮都集成在菜单栏中，提供了良好的用户体验。",
+  "devDependencies": {
+    "electron": "^39.2.4",
+    "electron-builder": "^26.0.12",
+    "http-server": "^14.1.1"
+  },
+  "dependencies": {
+    "mime-types": "^3.0.2"
+  }
+}

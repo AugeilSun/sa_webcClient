@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>本地网页浏览器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: #f0e6ff;
+            overflow: hidden;
+            height: 100vh;
+        }
+        
+        #browser-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            width: 100vw;
+        }
+        
+        #webview {
+            flex: 1;
+            border: none;
+            border-radius: 4px;
+            margin: 4px;
+            background-color: white;
+        }
+        
+        /* 加载指示器 */
+        #loading-indicator {
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(147, 112, 219, 0.9);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 12px;
+            font-size: 14px;
+            display: none;
+            z-index: 1000;
+        }
+        
+        /* 自定义窗口控制按钮 */
+        #window-controls {
+            position: fixed;
+            top: 0;
+            right: 0;
+            display: flex;
+            gap: 4px;
+            padding: 4px;
+            z-index: 1001;
+            background-color: rgba(240, 230, 255, 0.9);
+            border-bottom-left-radius: 6px;
+        }
+        
+        .window-btn {
+            width: 24px;
+            height: 24px;
+            border: none;
+            background-color: transparent;
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+        
+        /* 最小化按钮 */
+        #minimize-btn {
+            color: #6a5acd;
+        }
+        
+        #minimize-btn:hover {
+            background-color: rgba(147, 112, 219, 0.8);
+            color: white;
+        }
+        
+        /* 最大化按钮 */
+        #maximize-btn {
+            color: #9370db;
+        }
+        
+        #maximize-btn:hover {
+            background-color: rgba(147, 112, 219, 0.8);
+            color: white;
+        }
+        
+        /* 关闭按钮 */
+        #close-btn {
+            color: #ba55d3;
+        }
+        
+        #close-btn:hover {
+            background-color: rgba(255, 82, 82, 0.8);
+            color: white;
+        }
+        
+        /* 初始欢迎页面 */
+        #welcome-page {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #f0e6ff;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+        }
+        
+        #welcome-page h1 {
+            color: #9370db;
+            font-size: 32px;
+            margin-bottom: 20px;
+        }
+        
+        #welcome-page p {
+            color: #6a5acd;
+            font-size: 16px;
+            margin-bottom: 40px;
+        }
+        
+        #welcome-page .icon {
+            width: 120px;
+            height: 120px;
+            margin-bottom: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div id="browser-container">
+        <!-- 可拖动的标题栏 -->
+        <div id="title-bar" style="
+            height: 30px;
+            background-color: #f0e6ff;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 8px;
+            border-bottom: 1px solid rgba(147, 112, 219, 0.2);
+            position: relative;
+            z-index: 1000;
+            -webkit-app-region: drag;
+        ">
+            <!-- 左侧标题区域 -->
+            <div id="title-content" style="display: flex; align-items: center; gap: 8px;">
+                <!-- Logo图标 -->
+                <img id="title-logo" src="file:///d:/工具类项目/sa_webfrontend/www/logo.svg" alt="Logo" style="height: 20px; width: auto; display: none;" onerror="this.style.display='none'">
+                <!-- 标题文本 -->
+                <span id="title-text" style="font-size: 14px; color: #6a5acd; font-weight: 500;">放入logo.svg和title文件以显示logo和标题</span>
+            </div>
+            
+            <!-- 右侧窗口控制按钮区域 - 禁用拖动 -->
+            <div style="display: flex; gap: 8px; -webkit-app-region: no-drag;">
+                <button id="minimize-btn" class="window-btn">●</button>
+                <button id="maximize-btn" class="window-btn">●</button>
+                <button id="close-btn" class="window-btn">●</button>
+            </div>
+        </div>
+        
+        <!-- 初始欢迎页面 -->
+        <div id="welcome-page">
+            <svg class="icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="#9370db"/>
+                <circle cx="12" cy="12" r="3" fill="#6a5acd"/>
+            </svg>
+            <h1>本地网页浏览器</h1>
+            <p>使用菜单栏或快捷键 Ctrl+O 打开网址</p>
+        </div>
+        
+        <!-- WebView 用于显示网页内容，通过JavaScript动态设置src -->
+        <webview id="webview" 
+                 nodeintegration 
+                 webpreferences="webSecurity=no, javascript=yes, allowRunningInsecureContent=yes, contextIsolation=no, ignoreCertificateErrors=yes, allowDisplayingInsecureContent=yes" 
+                 style="margin-top: 0;"></webview>
+        
+        <!-- 加载指示器 -->
+        <div id="loading-indicator">加载中...</div>
+        
+        <!-- 自定义网址输入对话框 -->
+        <div id="url-dialog" style="
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        ">
+            <div style="
+                background-color: white;
+                border-radius: 6px;
+                padding: 20px;
+                width: 400px;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            ">
+                <h2 style="
+                    color: #6a5acd;
+                    margin: 0 0 15px 0;
+                    font-size: 18px;
+                ">打开网址</h2>
+                <p style="
+                    margin: 0 0 15px 0;
+                    color: #333;
+                ">请输入网址，例如：https://www.example.com</p>
+                <input type="text" id="url-input" style="
+                    width: 100%;
+                    padding: 8px;
+                    border: 1px solid #ddd;
+                    border-radius: 4px;
+                    font-size: 14px;
+                    margin-bottom: 15px;
+                " placeholder="https://www.example.com" value="https://www.baidu.com">
+                <div style="
+                    display: flex;
+                    justify-content: flex-end;
+                    gap: 10px;
+                ">
+                    <button id="url-cancel-btn" style="
+                        padding: 8px 16px;
+                        border: 1px solid #ddd;
+                        border-radius: 4px;
+                        background-color: white;
+                        color: #333;
+                        cursor: pointer;
+                        font-size: 14px;
+                    ">取消</button>
+                    <button id="url-confirm-btn" style="
+                        padding: 8px 16px;
+                        border: none;
+                        border-radius: 4px;
+                        background-color: #9370db;
+                        color: white;
+                        cursor: pointer;
+                        font-size: 14px;
+                    ">确定</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+        const webview = document.getElementById('webview');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const welcomePage = document.getElementById('welcome-page');
+
+        // 隐藏欢迎页面
+        function hideWelcomePage() {
+            welcomePage.style.display = 'none';
+        }
+
+        // 显示欢迎页面
+        function showWelcomePage() {
+            welcomePage.style.display = 'flex';
+        }
+
+        // 显示加载指示器
+        function showLoading() {
+            loadingIndicator.style.display = 'block';
+        }
+
+        // 隐藏加载指示器
+        function hideLoading() {
+            loadingIndicator.style.display = 'none';
+        }
+
+        // 加载网址
+        function loadURL(url) {
+            webview.src = url;
+        }
+        
+        // 页面加载时自动隐藏欢迎页面，检查index.html是否存在，不存在则读取www文件
+        window.addEventListener('DOMContentLoaded', () => {
+            hideWelcomePage();
+            // 加载标题和Logo
+            loadTitleAndLogo();
+            // 加载主题颜色配置
+            loadThemeColors();
+            // 加载尺寸配置
+            loadSizeConfig();
+            // 检查index.html是否存在，不存在则读取www文件
+            checkIndexAndLoadUrl();
+        });
+        
+        // 加载尺寸配置
+        function loadSizeConfig() {
+            const fs = require('fs');
+            const path = require('path');
+            
+            // size.config文件路径
+            const sizeConfigPath = path.join(__dirname, 'www', 'size.config');
+            
+            // 读取配置文件
+            fs.readFile(sizeConfigPath, 'utf8', (err, data) => {
+                if (!err && data.trim()) {
+                    // 解析配置文件，格式：key=value
+                    const sizes = {};
+                    const lines = data.trim().split('\n');
+                    
+                    lines.forEach(line => {
+                        if (line.trim() && !line.startsWith('#')) {
+                            const parts = line.split('=');
+                            if (parts.length === 2) {
+                                const key = parts[0].trim();
+                                const value = parts[1].trim();
+                                sizes[key] = value;
+                            }
+                        }
+                    });
+                    
+                    // 应用尺寸配置
+                    applySizeConfig(sizes);
+                }
+            });
+        }
+        
+        // 应用尺寸配置
+        function applySizeConfig(sizes) {
+            // 默认尺寸值
+            const defaultSizes = {
+                titleBarHeight: '30px',
+                buttonSize: '24px',
+                buttonGap: '8px',
+                borderRadius: '50%',
+                padding: '8px',
+                margin: '0px'
+            };
+            
+            // 合并默认尺寸和配置尺寸
+            const finalSizes = { ...defaultSizes, ...sizes };
+            
+            // 修改标题栏高度
+            const titleBar = document.getElementById('title-bar');
+            titleBar.style.height = finalSizes.titleBarHeight;
+            
+            // 修改窗口控制按钮样式
+            const buttons = document.querySelectorAll('.window-btn');
+            const buttonContainer = titleBar.querySelector('#title-content + div');
+            
+            // 设置按钮尺寸
+            buttons.forEach(button => {
+                button.style.width = finalSizes.buttonSize;
+                button.style.height = finalSizes.buttonSize;
+            });
+            
+            // 设置按钮间距
+            if (buttonContainer) {
+                buttonContainer.style.gap = finalSizes.buttonGap;
+            }
+            
+            // 设置按钮圆角
+            buttons.forEach(button => {
+                button.style.borderRadius = finalSizes.borderRadius;
+            });
+        }
+        
+        // 检查index.html是否存在，不存在则读取www文件第一行作为网址
+        function checkIndexAndLoadUrl() {
+            const fs = require('fs');
+            const path = require('path');
+            
+            // index.html文件路径
+            const indexPath = path.join(__dirname, 'www', 'index.html');
+            // www文件路径
+            const wwwFilePath = path.join(__dirname, 'www', 'www');
+            
+            // 检查index.html是否存在
+            fs.access(indexPath, fs.constants.F_OK, (err) => {
+                if (err) {
+                    // index.html不存在，读取www文件
+                    fs.readFile(wwwFilePath, 'utf8', (err, data) => {
+                        if (!err) {
+                            // 获取第一行内容作为网址
+                            const firstLine = data.trim().split('\n')[0];
+                            if (firstLine) {
+                                // 加载网址
+                                webview.src = firstLine;
+                            }
+                        }
+                    });
+                } else {
+                    // index.html存在，加载index.html
+                    webview.src = `file:///${indexPath.replace(/\\/g, '/')}`;
+                }
+            });
+        }
+        
+        // 加载标题和Logo
+        function loadTitleAndLogo() {
+            const fs = require('fs');
+            const path = require('path');
+            
+            // 标题文件路径
+            const titlePath = path.join(__dirname, 'www', 'title');
+            // Logo文件路径
+            const logoPath = path.join(__dirname, 'www', 'logo.svg');
+            
+            // 读取标题文件
+            fs.readFile(titlePath, 'utf8', (err, data) => {
+                const titleText = document.getElementById('title-text');
+                if (err) {
+                    // 文件不存在，显示默认提示
+                    titleText.textContent = '放入logo.svg和title文件以显示logo和标题';
+                } else {
+                    // 显示文件第一行内容
+                    const firstLine = data.trim().split('\n')[0];
+                    titleText.textContent = firstLine || '放入logo.svg和title文件以显示logo和标题';
+                }
+            });
+            
+            // 检查Logo文件是否存在
+            fs.access(logoPath, fs.constants.F_OK, (err) => {
+                const logoImg = document.getElementById('title-logo');
+                if (!err) {
+                    // 文件存在，显示Logo
+                    logoImg.style.display = 'block';
+                } else {
+                    // 文件不存在，隐藏Logo
+                    logoImg.style.display = 'none';
+                }
+            });
+        }
+        
+        // 加载主题颜色配置
+        function loadThemeColors() {
+            const fs = require('fs');
+            const path = require('path');
+            
+            // eleColor.config文件路径
+            const configPath = path.join(__dirname, 'www', 'eleColor.config');
+            
+            // 读取配置文件
+            fs.readFile(configPath, 'utf8', (err, data) => {
+                if (!err && data.trim()) {
+                    // 解析配置文件，格式：key=value
+                    const colors = {};
+                    const lines = data.trim().split('\n');
+                    
+                    lines.forEach(line => {
+                        const parts = line.split('=');
+                        if (parts.length === 2) {
+                            const key = parts[0].trim();
+                            const value = parts[1].trim();
+                            colors[key] = value;
+                        }
+                    });
+                    
+                    // 应用主题颜色
+                    applyThemeColors(colors);
+                }
+            });
+        }
+        
+        // 应用主题颜色
+        function applyThemeColors(colors) {
+            // 默认颜色值
+            const defaultColors = {
+                primaryColor: '#f0e6ff',
+                secondaryColor: '#9370db',
+                accentColor: '#6a5acd',
+                textColor: '#6a5acd',
+                hoverColor: 'rgba(147, 112, 219, 0.8)'
+            };
+            
+            // 合并默认颜色和配置颜色
+            const finalColors = { ...defaultColors, ...colors };
+            
+            // 修改body背景色
+            document.body.style.backgroundColor = finalColors.primaryColor;
+            
+            // 修改标题栏样式
+            const titleBar = document.getElementById('title-bar');
+            titleBar.style.backgroundColor = finalColors.primaryColor;
+            titleBar.style.borderBottom = `1px solid ${finalColors.secondaryColor}`;
+            
+            // 修改窗口控制按钮样式
+            const minimizeBtn = document.getElementById('minimize-btn');
+            const maximizeBtn = document.getElementById('maximize-btn');
+            const closeBtn = document.getElementById('close-btn');
+            
+            minimizeBtn.style.color = finalColors.accentColor;
+            maximizeBtn.style.color = finalColors.secondaryColor;
+            closeBtn.style.color = finalColors.secondaryColor;
+            
+            // 修改按钮悬停样式
+            document.styleSheets[0].insertRule(`
+                #minimize-btn:hover, #maximize-btn:hover {
+                    background-color: ${finalColors.hoverColor} !important;
+                }
+            `, document.styleSheets[0].cssRules.length);
+            
+            // 修改欢迎页面样式
+            const welcomePage = document.getElementById('welcome-page');
+            const welcomeTitle = welcomePage.querySelector('h1');
+            const welcomeText = welcomePage.querySelector('p');
+            
+            welcomePage.style.backgroundColor = finalColors.primaryColor;
+            welcomeTitle.style.color = finalColors.secondaryColor;
+            welcomeText.style.color = finalColors.accentColor;
+            
+            // 修改加载指示器样式
+            const loadingIndicator = document.getElementById('loading-indicator');
+            loadingIndicator.style.backgroundColor = finalColors.secondaryColor;
+        }
+
+        // 窗口控制函数 - 通过IPC发送消息到主进程
+        function minimizeWindow() {
+            ipcRenderer.send('window-minimize');
+        }
+
+        function maximizeWindow() {
+            ipcRenderer.send('window-maximize');
+        }
+
+        function closeWindow() {
+            ipcRenderer.send('window-close');
+        }
+
+        // 为窗口控制按钮添加事件监听
+        document.getElementById('minimize-btn').addEventListener('click', minimizeWindow);
+        document.getElementById('maximize-btn').addEventListener('click', maximizeWindow);
+        document.getElementById('close-btn').addEventListener('click', closeWindow);
+
+        // 监听主进程发送的消息
+        ipcRenderer.on('load-url', (event, url) => {
+            loadURL(url);
+        });
+
+        // 获取自定义网址输入对话框元素
+        const urlDialog = document.getElementById('url-dialog');
+        const urlInput = document.getElementById('url-input');
+        const urlCancelBtn = document.getElementById('url-cancel-btn');
+        const urlConfirmBtn = document.getElementById('url-confirm-btn');
+
+        // 显示网址输入对话框
+        function showUrlDialog() {
+            console.log('Showing URL dialog');
+            urlDialog.style.display = 'flex';
+            // 聚焦到输入框，方便用户直接输入
+            urlInput.focus();
+            // 选中输入框中的文本，方便用户直接替换
+            urlInput.select();
+        }
+
+        // 隐藏网址输入对话框
+        function hideUrlDialog() {
+            console.log('Hiding URL dialog');
+            urlDialog.style.display = 'none';
+        }
+
+        // 处理用户确认输入
+        function handleUrlConfirm() {
+            console.log('URL confirm button clicked');
+            const url = urlInput.value;
+            console.log('User entered URL:', url);
+            if (url && url.trim()) {
+                // 检查是否包含协议
+                let trimmedUrl = url.trim();
+                if (!/^https?:\/\//i.test(trimmedUrl)) {
+                    trimmedUrl = 'https://' + trimmedUrl;
+                }
+                console.log('Loading URL:', trimmedUrl);
+                // 直接设置webview的src属性
+                webview.src = trimmedUrl;
+            } else {
+                console.log('User entered empty URL');
+            }
+            hideUrlDialog();
+        }
+
+        // 为对话框按钮添加事件监听器
+        urlCancelBtn.addEventListener('click', hideUrlDialog);
+        urlConfirmBtn.addEventListener('click', handleUrlConfirm);
+
+        // 监听回车键，确认输入
+        urlInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                handleUrlConfirm();
+            }
+        });
+
+        // 监听主进程发送的显示网址对话框消息
+        ipcRenderer.on('show-url-dialog', () => {
+            console.log('Received show-url-dialog message');
+            try {
+                showUrlDialog();
+            } catch (error) {
+                console.error('Show URL dialog failed:', error);
+                // 显示错误信息
+                alert('显示对话框失败: ' + error.message + '，请稍后重试');
+            }
+        });
+
+        ipcRenderer.on('go-forward', () => {
+            if (webview.canGoForward()) {
+                webview.goForward();
+            }
+        });
+
+        ipcRenderer.on('go-back', () => {
+            if (webview.canGoBack()) {
+                webview.goBack();
+            }
+        });
+
+        ipcRenderer.on('reload', () => {
+            webview.reload();
+        });
+
+        ipcRenderer.on('stop-loading', () => {
+            webview.stop();
+        });
+
+        // WebView 事件监听
+        webview.addEventListener('did-start-loading', () => {
+            showLoading();
+        });
+
+        webview.addEventListener('did-stop-loading', () => {
+            hideLoading();
+        });
+
+        webview.addEventListener('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+            hideLoading();
+            console.error(`加载失败: ${errorDescription} (${errorCode})`);
+        });
+
+        webview.addEventListener('dom-ready', () => {
+            hideLoading();
+        });
+    </script>
+</body>
+</html>
