@@ -4,7 +4,44 @@
   "main": "index.js",
   "scripts": {
     "start": "electron .",
+    "build": "electron-builder --win --x64 --dir",
+    "build:exe": "electron-builder --win --x64",
     "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "build": {
+    "appId": "com.sa.webclient",
+    "productName": "本地网页浏览器",
+    "directories": {
+      "output": "dist"
+    },
+    "asar": {
+      "smartUnpack": true
+    },
+    "win": {
+      "target": "portable",
+      "icon": "icon.svg",
+      "asar": true,
+      "compression": "maximum",
+      "extraResources": [],
+      "files": [
+        "index.js",
+        "index.html",
+        "package.json",
+        "www/**/*",
+        "icon.svg"
+      ]
+    },
+    "files": [
+      "!node_modules/mime-types",
+      "!node_modules/http-server",
+      "!test.html",
+      "!.gitignore",
+      "!.trae/**/*",
+      "!dist/**/*",
+      "!*.log",
+      "!package-lock.json",
+      "!pnpm-lock.yaml"
+    ]
   },
   "author": "",
   "license": "ISC",
